@@ -23,8 +23,13 @@ depende de si están definidas las variables de entorno:
 
 | Variables            | Backend        | Qué implica                                                        |
 | -------------------- | -------------- | ------------------------------------------------------------------ |
-| ninguna (por defecto) | `localStorage` | Funciona sin configurar nada, pero cada navegador tiene su propio bote. |
+| ninguna              | `localStorage` | Funciona sin configurar nada, pero cada navegador tiene su propio bote. |
 | `VITE_SUPABASE_*`    | Supabase REST  | Todo el mundo que abra el enlace ve y edita el mismo bote.          |
+
+**El sitio publicado usa el modo compartido**, configurado en `.env.production`.
+En `npm run dev` no se carga ese fichero, así que en local trabajas contra
+`localStorage` y no ensucias el bote de verdad. Para desarrollar contra Supabase,
+copia `.env.example` a `.env`.
 
 La app lo indica en un aviso en la pantalla de inicio, así que no hay duda de en
 qué modo está corriendo.
@@ -37,9 +42,8 @@ qué modo está corriendo.
 
 3. Copia `.env.example` a `.env` y rellena la URL y la clave `anon`
    (Project Settings → API).
-4. Para el despliegue, define esos dos valores como **repository variables** en
-   GitHub (Settings → Secrets and variables → Actions → Variables). El workflow
-   ya los pasa al build.
+4. Para el despliegue, pon esos dos valores en `.env.production`. Vite lo carga
+   solo al compilar; el workflow no necesita configuración extra.
 
 La clave `anon` es pública por diseño: viaja dentro del bundle JS. Quien protege
 los datos es la política RLS, no ocultar la clave.

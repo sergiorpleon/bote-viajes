@@ -25,12 +25,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # La configuracion del bote compartido vive en .env.production, que Vite
+      # carga solo. No se pasa por env: aqui a proposito: una repository
+      # variable sin definir llega como cadena vacia y pisaria el fichero,
+      # devolviendo el sitio a localStorage sin que nadie se entere.
       - run: npm run build
-        env:
-          # Optional: set these as repository *variables* to enable the shared
-          # bote. Left unset, the app falls back to per-browser localStorage.
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

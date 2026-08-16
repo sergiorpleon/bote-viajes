@@ -1126,7 +1126,19 @@ export default function App() {
   const [showConverter, setShowConverter] = useState(false);
   const [showWipeConfirm, setShowWipeConfirm] = useState(false);
   const [storageError, setStorageError] = useState(false);
+  const [writeError, setWriteError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Every write updates React state first and persists after, so a failed save
+  // is invisible: the movement sits on screen looking saved until someone
+  // reloads and finds it gone. Cheap with localStorage, likely with a remote
+  // backend (offline, wrong key, RLS policy). Wrap writes so they can't fail
+  // quietly.
+  const checked = async (promise) => {
+    const ok = await promise;
+    if (!ok) setWriteError(true);
+    return ok;
+  };
 
   const loadAllTrips = useCallback(async () => {
     const index = (await storeGet("trips-index")) || [];
@@ -1176,14 +1188,14 @@ export default function App() {
       id: t.id, name: t.name, color: t.color, emoji: t.emoji, photo: null,
       memberCount: t.members.length, currencyA: t.currencies.A.code, currencyB: t.currencies.B.code,
     }));
-    await storeSet("trips-index", index);
+    await checked(storeSet("trips-index", index));
   };
 
   const saveTrip = async (trip) => {
     const exists = trips.some((t) => t.id === trip.id);
     const next = exists ? trips.map((t) => (t.id === trip.id ? trip : t)) : [...trips, trip];
     setTrips(next);
-    await storeSet(`trip:${trip.id}`, trip);
+    await checked(storeSet(`trip:${trip.id}`, trip));
     await persistIndex(next);
     setShowNewTrip(false);
     setShowEditTrip(false);
@@ -1193,8 +1205,8 @@ export default function App() {
   const deleteTrip = async (id) => {
     const next = trips.filter((t) => t.id !== id);
     setTrips(next);
-    await storeDelete(`trip:${id}`);
-    await storeDelete(`movements:${id}`);
+    await checked(storeDelete(`trip:${id}`));
+    await checked(storeDelete(`movements:${id}`));
     await persistIndex(next);
     setShowEditTrip(false);
     setRoute("home");
@@ -1205,22 +1217,22 @@ export default function App() {
     const current = movementsByTrip[tripId] || [];
     const next = [...current, mv];
     setMovementsByTrip((prev) => ({ ...prev, [tripId]: next }));
-    await storeSet(`movements:${tripId}`, next);
+    await checked(storeSet(`movements:${tripId}`, next));
   };
 
   const deleteMovement = async (tripId, mvId) => {
     const current = movementsByTrip[tripId] || [];
     const next = current.filter((m) => m.id !== mvId);
     setMovementsByTrip((prev) => ({ ...prev, [tripId]: next }));
-    await storeSet(`movements:${tripId}`, next);
+    await checked(storeSet(`movements:${tripId}`, next));
   };
 
   const wipeAll = async () => {
     for (const t of trips) {
-      await storeDelete(`trip:${t.id}`);
-      await storeDelete(`movements:${t.id}`);
+      await checked(storeDelete(`trip:${t.id}`));
+      await checked(storeDelete(`movements:${t.id}`));
     }
-    await storeDelete("trips-index");
+    await checked(storeDelete("trips-index"));
     setTrips([]);
     setMovementsByTrip({});
     setRoute("home");
@@ -1249,6 +1261,22 @@ export default function App() {
       {storageError && (
         <div style={{ background: C.brick, color: C.white, textAlign: "center", padding: "8px 14px", fontSize: 12.5 }}>
           No se pudieron cargar algunos viajes guardados.
+        </div>
+      )}
+
+      {writeError && (
+        <div style={{ background: C.brick, color: C.white, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "8px 14px", fontSize: 12.5 }}>
+          <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+          <span>
+            No se pudo guardar el último cambio{isShared ? ". Comprueba tu conexión" : ""}. Puede
+            desaparecer al recargar.
+          </span>
+          <button
+            onClick={() => setWriteError(false)}
+            style={{ background: "rgba(255,255,255,0.22)", border: "none", borderRadius: 6, color: C.white, cursor: "pointer", fontSize: 11.5, padding: "3px 8px", ...fontBody }}
+          >
+            Entendido
+          </button>
         </div>
       )}
 

@@ -99,7 +99,8 @@ export async function storeSet(key, value) {
 export async function storeDelete(key) {
   try {
     await backend.delete(key);
+    return true;
   } catch (e) {
-    /* ignore */
+    return false;
   }
 }

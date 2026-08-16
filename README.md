@@ -32,23 +32,8 @@ qué modo está corriendo.
 ### Activar el bote compartido
 
 1. Crea un proyecto en [supabase.com](https://supabase.com) (plan gratuito).
-2. En el SQL Editor, crea la tabla y su política de acceso:
-
-   ```sql
-   create table kv (
-     key text primary key,
-     value jsonb,
-     updated_at timestamptz default now()
-   );
-
-   alter table kv enable row level security;
-
-   -- Sin cuentas: cualquiera con el enlace puede leer y escribir.
-   -- Es justo lo que hacía el artifact original. Si el viaje es privado,
-   -- el enlace es el único secreto: no lo publiques.
-   create policy "acceso anónimo" on kv
-     for all to anon using (true) with check (true);
-   ```
+2. En el SQL Editor, pega el contenido de [`supabase.sql`](./supabase.sql) y
+   pulsa Run. Crea la tabla `kv` y su política de acceso anónimo.
 
 3. Copia `.env.example` a `.env` y rellena la URL y la clave `anon`
    (Project Settings → API).

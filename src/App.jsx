@@ -1183,12 +1183,16 @@ export default function App() {
     setRefreshing(false);
   };
 
-  const persistIndex = async (nextTrips) => {
-    const index = nextTrips.map((t) => ({
-      id: t.id, name: t.name, color: t.color, emoji: t.emoji, photo: null,
-      memberCount: t.members.length, currencyA: t.currencies.A.code, currencyB: t.currencies.B.code,
-    }));
-    await checked(storeSet("trips-index", index));
+  const indexEntry = (t) => ({
+    id: t.id, name: t.name, color: t.color, emoji: t.emoji, photo: null,
+    memberCount: t.members.length, currencyA: t.currencies.A.code, currencyB: t.currencies.B.code,
+  });
+
+  // Same hazard as the movements list: rebuilding the index from local state
+  // would drop every trip this browser hasn't loaded yet. Edit the stored one.
+  const mutateIndex = async (fn) => {
+    const stored = (await storeGet("trips-index")) || [];
+    await checked(storeSet("trips-index", fn(stored)));
   };
 
   const saveTrip = async (trip) => {
@@ -1196,7 +1200,11 @@ export default function App() {
     const next = exists ? trips.map((t) => (t.id === trip.id ? trip : t)) : [...trips, trip];
     setTrips(next);
     await checked(storeSet(`trip:${trip.id}`, trip));
-    await persistIndex(next);
+    await mutateIndex((idx) =>
+      idx.some((e) => e.id === trip.id)
+        ? idx.map((e) => (e.id === trip.id ? indexEntry(trip) : e))
+        : [...idx, indexEntry(trip)]
+    );
     setShowNewTrip(false);
     setShowEditTrip(false);
     if (!exists) await openTrip(trip.id);
@@ -1207,25 +1215,31 @@ export default function App() {
     setTrips(next);
     await checked(storeDelete(`trip:${id}`));
     await checked(storeDelete(`movements:${id}`));
-    await persistIndex(next);
+    await mutateIndex((idx) => idx.filter((e) => e.id !== id));
     setShowEditTrip(false);
     setRoute("home");
     setCurrentTripId(null);
   };
 
-  const addMovement = async (tripId, mv) => {
-    const current = movementsByTrip[tripId] || [];
-    const next = [...current, mv];
+  // Movements live as one array in one key, so every write replaces the whole
+  // list. Building that list from React state is unsafe: right after opening a
+  // trip the state is still empty while the load is in flight, so a quick save
+  // would persist [nuevo] and wipe everything else — and the late load would
+  // then repaint the old list, hiding the loss until the next reload. Reading
+  // the stored list immediately before writing fixes that, and shrinks the
+  // window where two people writing at once can clobber each other from
+  // "however long the trip has been open" to one round trip.
+  const mutateMovements = async (tripId, fn) => {
+    const stored = (await storeGet(`movements:${tripId}`)) || [];
+    const next = fn(stored);
     setMovementsByTrip((prev) => ({ ...prev, [tripId]: next }));
     await checked(storeSet(`movements:${tripId}`, next));
   };
 
-  const deleteMovement = async (tripId, mvId) => {
-    const current = movementsByTrip[tripId] || [];
-    const next = current.filter((m) => m.id !== mvId);
-    setMovementsByTrip((prev) => ({ ...prev, [tripId]: next }));
-    await checked(storeSet(`movements:${tripId}`, next));
-  };
+  const addMovement = (tripId, mv) => mutateMovements(tripId, (list) => [...list, mv]);
+
+  const deleteMovement = (tripId, mvId) =>
+    mutateMovements(tripId, (list) => list.filter((m) => m.id !== mvId));
 
   const wipeAll = async () => {
     for (const t of trips) {
